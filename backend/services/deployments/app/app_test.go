@@ -1864,6 +1864,30 @@ func TestLookupDeploymentFallback(t *testing.T) {
 		assert.Len(t, deployments, 1)
 	})
 
+	t.Run("fallback skipped on pagination overshoot", func(t *testing.T) {
+		ctx := identity.WithContext(context.Background(), &identity.Identity{
+			Tenant: "tenant123",
+		})
+		query := model.Query{
+			Names:       []string{"my-device"},
+			IdAttribute: "mac",
+			IdScope:     "identity",
+			Limit:       20,
+			Skip:        100,
+		}
+		db := mocks.DataStore{}
+		defer db.AssertExpectations(t)
+		db.On("FindDeployments", ctx, query).
+			Return(nil, int64(5), nil)
+
+		ds := &Deployments{db: &db}
+
+		deployments, count, err := ds.LookupDeployment(ctx, query)
+		assert.NoError(t, err)
+		assert.Equal(t, int64(5), count)
+		assert.Equal(t, []*model.Deployment{}, deployments)
+	})
+
 	t.Run("fallback inventory search returns no devices", func(t *testing.T) {
 		ctx := identity.WithContext(context.Background(), &identity.Identity{
 			Tenant: "tenant123",
